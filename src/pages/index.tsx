@@ -127,7 +127,7 @@ async function handleCreateMatch(matchData: MatchData) {
   }
 
   // 删除比赛记录
-  async function deleteMatch(matchId: string, e: React.MouseEvent<HTMLButtonElement>) {
+  async function deleteMatch(matchId: string) {  // 移除 e 参数
     if (confirm('确定要删除这场比赛记录吗？')) {
       const { error } = await supabase
         .from('matches')
@@ -139,6 +139,7 @@ async function handleCreateMatch(matchData: MatchData) {
       }
     }
   }
+  
 
   // ===== 计算统计数据 =====
   const totalMatches = matches.length
@@ -269,7 +270,7 @@ return (
                     </td>
                     <td>
                       <button
-                        onClick={(e) => deleteMatch(match.id, e)}
+                        onClick={() => deleteMatch(match.id)}
                         className="text-red-600 hover:text-red-800"
                       >
                         删除

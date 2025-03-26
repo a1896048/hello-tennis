@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/utils/supabase'
 import type { Database } from '@/types/database.types'
 
@@ -13,15 +13,10 @@ export default function MatchDetail() {
   const [player1, setPlayer1] = useState<User | null>(null)
   const [player2, setPlayer2] = useState<User | null>(null)
   const [teammate, setTeammate] = useState<User | null>(null)
-  const [users, setUsers] = useState<User[]>([])
 
-  useEffect(() => {
-    if (id) {
-      fetchMatchDetails()
-    }
-  }, [id])
+  const fetchMatchDetails = useCallback(async () => {
+    if (!id) return
 
-  async function fetchMatchDetails() {
     const { data: matchData } = await supabase
       .from('matches')
       .select('*')
@@ -36,7 +31,6 @@ export default function MatchDetail() {
         .select('*')
       
       if (usersData) {
-        setUsers(usersData)
         setPlayer1(usersData.find(u => u.id === matchData.player1_id) || null)
         setPlayer2(usersData.find(u => u.id === matchData.player2_id) || null)
         if (matchData.teammate_id) {
@@ -44,59 +38,67 @@ export default function MatchDetail() {
         }
       }
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    fetchMatchDetails()
+  }, [fetchMatchDetails])
 
   if (!match || !player1 || !player2) {
-    return <div className="flex justify-center items-center h-screen">加载中...</div>
+    return <div>加载中...</div>
   }
 
   return (
-    <div className="container mx-auto p-4 max-w-4xl">
-      <button
-        onClick={() => router.push('/')}
-        className="mb-6 text-blue-500 hover:text-blue-700 flex items-center"
-      >
-        ← 返回首页
-      </button>
-
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">比赛详情</h1>
+      
       <div className="bg-white shadow rounded-lg p-6">
-        <h1 className="text-2xl font-bold mb-6">比赛详情</h1>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full" style={{ borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={{ border: '2px solid black', padding: '8px 16px', backgroundColor: '#f9fafb' }}>比赛类型</th>
-                <th style={{ border: '2px solid black', padding: '8px 16px', backgroundColor: '#f9fafb' }}>队友</th>
-                <th style={{ border: '2px solid black', padding: '8px 16px', backgroundColor: '#f9fafb' }}>对手</th>
-                <th style={{ border: '2px solid black', padding: '8px 16px', backgroundColor: '#f9fafb' }}>第一盘</th>
-                <th style={{ border: '2px solid black', padding: '8px 16px', backgroundColor: '#f9fafb' }}>第二盘</th>
-                <th style={{ border: '2px solid black', padding: '8px 16px', backgroundColor: '#f9fafb' }}>第三盘</th>
-                <th style={{ border: '2px solid black', padding: '8px 16px', backgroundColor: '#f9fafb' }}>比赛日期</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style={{ border: '2px solid black', padding: '8px 16px', textAlign: 'center' }}>
-                  {match.match_type === 'doubles' ? '双打' : '单打'}
-                </td>
-                <td style={{ border: '2px solid black', padding: '8px 16px', textAlign: 'center' }}>
-                  {teammate ? teammate.name : '-'}
-                </td>
-                <td style={{ border: '2px solid black', padding: '8px 16px', textAlign: 'center' }}>
-                  {player2.name}
-                </td>
-                {match.sets?.map((set, index) => (
-                  <td key={index} style={{ border: '2px solid black', padding: '8px 16px', textAlign: 'center' }}>
-                    {set.player1_score} : {set.player2_score}
-                  </td>
-                ))}
-                <td style={{ border: '2px solid black', padding: '8px 16px', textAlign: 'center' }}>
-                  {new Date(match.match_date).toLocaleDateString()}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">日期</h2>
+            <p>{new Date(match.match_date).toLocaleDateString()}</p>
+          </div>
+          
+          <div>
+            <h2 className="text-lg font-semibold">类型</h2>
+            <p>{match.match_type.includes('singles') ? '单打' : '双打'}</p>
+          </div>
+          
+          <div>
+            <h2 className="text-lg font-semibold">玩家1</h2>
+            <p>{player1.name}</p>
+          </div>
+          
+          <div>
+            <h2 className="text-lg font-semibold">玩家2</h2>
+            <p>{player2.name}</p>
+          </div>
+          
+          {teammate && (
+            <div>
+              <h2 className="text-lg font-semibold">队友</h2>
+              <p>{teammate.name}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold mb-2">比分</h2>
+          <div className="flex gap-4">
+            {match.sets.map((set, index) => (
+              <div key={index} className="text-center">
+                <p className="font-bold">第 {index + 1} 局</p>
+                <p>{set.player1_score} : {set.player2_score}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold mb-2">总分</h2>
+          <p>
+            {match.player1_score} : {match.player2_score}
+          </p>
         </div>
       </div>
     </div>
