@@ -1,5 +1,5 @@
 // 导入必要的依赖
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 
 import { supabase } from '@/utils/supabase'
 import type { Database } from '@/types/database.types'
@@ -40,16 +40,12 @@ export default function Home() {
   const [showCreateMatch, setShowCreateMatch] = useState(false)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
 
-  // ===== 生命周期函数 =====
-  useEffect(() => {
-    fetchMatches()
-    fetchUsers()
-    checkUser()
-  }, [])
+
+
 
   // ===== 数据获取函数 =====
   // 检查当前用户状态
-  async function checkUser() {
+  const checkUser = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data } = await supabase
@@ -59,10 +55,10 @@ export default function Home() {
         .single()
       setCurrentUser(data)
     }
-  }
+  }, [])
 
   // 获取比赛记录
-  async function fetchMatches() {
+  const fetchMatches = useCallback(async () => {
     const { data, error } = await supabase
       .from('matches')
       .select('*')
@@ -74,25 +70,31 @@ export default function Home() {
     }
     
     if (data) setMatches(data)
-  }
+  }, [])
 
   // 获取用户列表
-  async function fetchUsers() {
+  const fetchUsers = useCallback(async () => {
     const { data } = await supabase
       .from('users')
       .select('*')
     if (data) setUsers(data)
-  }
+  }, [])
+
+  // 修改 useEffect 依赖
+  useEffect(() => {
+    fetchMatches()
+    fetchUsers()
+    checkUser()
+  }, [fetchMatches, fetchUsers, checkUser])
+
 
   // ===== 比赛相关函数 =====
-// 创建新比赛
-async function handleCreateMatch(matchData: MatchData) {
-  try {
-    // 计算总分
-    const player1TotalScore = matchData.sets.reduce((sum: number, set: Set) => sum + set.player1_score, 0)
-    const player2TotalScore = matchData.sets.reduce((sum: number, set: Set) => sum + set.player2_score, 0)
-    
-
+  // 创建新比赛
+  const handleCreateMatch = useCallback(async (matchData: MatchData) => {
+    try {
+      // 计算总分
+      const player1TotalScore = matchData.sets.reduce((sum: number, set: Set) => sum + set.player1_score, 0)
+      const player2TotalScore = matchData.sets.reduce((sum: number, set: Set) => sum + set.player2_score, 0)
 
       // 准备比赛数据
       const newMatch = {
@@ -124,10 +126,10 @@ async function handleCreateMatch(matchData: MatchData) {
       console.error('发生错误:', err)
       alert('创建比赛失败，请重试')
     }
-  }
+  }, [fetchMatches])
 
   // 删除比赛记录
-  async function deleteMatch(matchId: string) {  // 移除 e 参数
+  const deleteMatch = useCallback(async (matchId: string) => {
     if (confirm('确定要删除这场比赛记录吗？')) {
       const { error } = await supabase
         .from('matches')
@@ -138,7 +140,8 @@ async function handleCreateMatch(matchData: MatchData) {
         fetchMatches()
       }
     }
-  }
+  }, [fetchMatches])
+
   
 
   // ===== 计算统计数据 =====

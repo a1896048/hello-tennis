@@ -9,7 +9,6 @@ type Match = Database['public']['Tables']['matches']['Row']
 type User = Database['public']['Tables']['users']['Row']
 
 export default function Statistics() {
-  // ===== 状态管理 (第13-20行) =====
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [matches, setMatches] = useState<Match[]>([])
   const [monthlyStats, setMonthlyStats] = useState({
@@ -19,50 +18,8 @@ export default function Statistics() {
     winRate: 0
   })
 
-  // ===== 数据获取函数 (第43-63行) =====
-  const fetchMonthlyMatches = useCallback(async (userId: string) => {
-    const now = new Date()
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-
-    const { data } = await supabase
-      .from('matches')
-      .select('*')
-      .gte('match_date', firstDay.toISOString())
-      .lte('match_date', lastDay.toISOString())
-      .or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
-      .order('match_date', { ascending: false })
-
-    if (data) {
-      setMatches(data)
-      calculateStats(data, userId)
-    }
-  }, [])
-
-  // ===== 用户验证函数 (第26-41行) =====
-  const checkUser = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-      
-      if (data) {
-        setCurrentUser(data)
-        fetchMonthlyMatches(data.id)
-      }
-    }
-  }, [fetchMonthlyMatches])
-
-  // ===== 生命周期钩子 (第22-24行) =====
-  useEffect(() => {
-    checkUser()
-  }, [checkUser])
-
-  // ===== 统计计算函数 (第65-95行) =====
-  function calculateStats(matches: Match[], userId: string) {
+  // 将 calculateStats 用 useCallback 包装
+  const calculateStats = useCallback((matches: Match[], userId: string) => {
     const stats = matches.reduce((acc, match) => {
       const isPlayer1 = match.player1_id === userId
       const playerScore = isPlayer1 ? match.player1_score : match.player2_score
@@ -89,34 +46,66 @@ export default function Statistics() {
       : 0
 
     setMonthlyStats(stats)
-  }
+  }, [])
 
-  // ===== 登录检查 (第97-99行) =====
+  const fetchMonthlyMatches = useCallback(async (userId: string) => {
+    const now = new Date()
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+
+    const { data } = await supabase
+      .from('matches')
+      .select('*')
+      .gte('match_date', firstDay.toISOString())
+      .lte('match_date', lastDay.toISOString())
+      .or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
+      .order('match_date', { ascending: false })
+
+    if (data) {
+      setMatches(data)
+      calculateStats(data, userId)
+    }
+  }, [calculateStats])
+
+  const checkUser = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+      
+      if (data) {
+        setCurrentUser(data)
+        fetchMonthlyMatches(data.id)
+      }
+    }
+  }, [fetchMonthlyMatches])
+
+  useEffect(() => {
+    checkUser()
+  }, [checkUser])
+
   if (!currentUser) {
     return <div>请先登录</div>
   }
 
-  // ===== 页面渲染 (第101-182行) =====
   return (
     <div className="container mx-auto p-4 max-w-4xl">
-      {/* 页面标题 */}
       <h1 className="text-2xl font-bold mb-6">本月统计</h1>
       
-      {/* 统计数据卡片 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {/* 总场数 */}
         <div className="bg-white shadow rounded-lg p-6">
           <div className="text-gray-600">总场数</div>
           <div className="text-3xl font-bold mt-2">{monthlyStats.totalMatches}</div>
         </div>
         
-        {/* 胜场 */}
         <div className="bg-white shadow rounded-lg p-6">
           <div className="text-gray-600">胜场</div>
           <div className="text-3xl font-bold mt-2">{monthlyStats.wonMatches}</div>
         </div>
 
-        {/* 胜率环形图 */}
         <div className="bg-white shadow rounded-lg p-6 flex flex-col items-center">
           <div className="text-gray-600 mb-2">胜率</div>
           <div style={{ width: '80px' }}>
@@ -134,14 +123,12 @@ export default function Statistics() {
           </div>
         </div>
 
-        {/* 总积分 */}
         <div className="bg-white shadow rounded-lg p-6">
           <div className="text-gray-600">总积分</div>
           <div className="text-3xl font-bold mt-2">{monthlyStats.totalPoints}</div>
         </div>
       </div>
 
-      {/* 比赛记录表格 */}
       <h2 className="text-xl font-bold mb-4">本月比赛记录</h2>
       <div className="bg-white shadow rounded-lg overflow-hidden">
         <table className="w-full" style={{ borderCollapse: 'collapse' }}>
