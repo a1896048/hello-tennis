@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/utils/supabase'
 import type { Database } from '@/types/database.types'
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar'
@@ -19,30 +19,8 @@ export default function Statistics() {
     winRate: 0
   })
 
-  // ===== 生命周期钩子 (第22-24行) =====
-  useEffect(() => {
-    checkUser()
-  }, [])
-
-  // ===== 用户验证函数 (第26-41行) =====
-  async function checkUser() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-      
-      if (data) {
-        setCurrentUser(data)
-        fetchMonthlyMatches(data.id)
-      }
-    }
-  }
-
   // ===== 数据获取函数 (第43-63行) =====
-  async function fetchMonthlyMatches(userId: string) {
+  const fetchMonthlyMatches = useCallback(async (userId: string) => {
     const now = new Date()
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
@@ -59,7 +37,29 @@ export default function Statistics() {
       setMatches(data)
       calculateStats(data, userId)
     }
-  }
+  }, [])
+
+  // ===== 用户验证函数 (第26-41行) =====
+  const checkUser = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+      
+      if (data) {
+        setCurrentUser(data)
+        fetchMonthlyMatches(data.id)
+      }
+    }
+  }, [fetchMonthlyMatches])
+
+  // ===== 生命周期钩子 (第22-24行) =====
+  useEffect(() => {
+    checkUser()
+  }, [checkUser])
 
   // ===== 统计计算函数 (第65-95行) =====
   function calculateStats(matches: Match[], userId: string) {
@@ -154,7 +154,6 @@ export default function Statistics() {
             </tr>
           </thead>
           <tbody>
-            
             {matches.map(match => {
               const isPlayer1 = match.player1_id === currentUser.id
 
@@ -186,8 +185,6 @@ export default function Statistics() {
                 </tr>
               )
             })}
-
-    
           </tbody>
         </table>
       </div>
