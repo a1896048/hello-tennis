@@ -1,7 +1,6 @@
 // 导入必要的依赖
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/router'
-import Link from 'next/link'
+
 import { supabase } from '@/utils/supabase'
 import type { Database } from '@/types/database.types'
 
@@ -17,9 +16,21 @@ import Leaderboard from '@/components/layout/Leaderboard'
 type Match = Database['public']['Tables']['matches']['Row']
 type User = Database['public']['Tables']['users']['Row']
 
+type Set = {
+  player1_score: number
+  player2_score: number
+}
+
+type MatchData = {
+  sets: Set[]
+  match_date: string
+  player1_id: string
+  player2_id: string
+}
+
 // 主页组件
 export default function Home() {
-  const router = useRouter()
+
   
   // ===== 状态管理 =====
   const [currentUser, setCurrentUser] = useState<User | null>(null)
@@ -74,12 +85,14 @@ export default function Home() {
   }
 
   // ===== 比赛相关函数 =====
-  // 创建新比赛
-  async function handleCreateMatch(matchData: any) {
-    try {
-      // 计算总分
-      const player1TotalScore = matchData.sets.reduce((sum: number, set: any) => sum + set.player1_score, 0)
-      const player2TotalScore = matchData.sets.reduce((sum: number, set: any) => sum + set.player2_score, 0)
+// 创建新比赛
+async function handleCreateMatch(matchData: MatchData) {
+  try {
+    // 计算总分
+    const player1TotalScore = matchData.sets.reduce((sum: number, set: Set) => sum + set.player1_score, 0)
+    const player2TotalScore = matchData.sets.reduce((sum: number, set: Set) => sum + set.player2_score, 0)
+    
+
 
       // 准备比赛数据
       const newMatch = {
@@ -114,8 +127,7 @@ export default function Home() {
   }
 
   // 删除比赛记录
-  async function deleteMatch(matchId: string, e: React.MouseEvent) {
-    e.preventDefault()
+  async function deleteMatch(matchId: string, e: React.MouseEvent<HTMLButtonElement>) {
     if (confirm('确定要删除这场比赛记录吗？')) {
       const { error } = await supabase
         .from('matches')
