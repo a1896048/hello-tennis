@@ -13,23 +13,31 @@ interface CreateMatchProps {
     player1_id: string
     player2_id: string
     match_date: string
+    match_type: 'women_singles' | 'men_singles' | 'women_doubles' | 'men_doubles' | 'mixed_singles' | 'mixed_doubles'
+    teammate_id?: string
+    opponent2_id?: string
     sets: Array<{
       set_number: number
       player1_score: number
       player2_score: number
+      tiebreak?: {
+        player1_score: number
+        player2_score: number
+      }
     }>
   }) => void
 }
 
-
 export default function CreateMatch({ currentUser, users, onCancel, onSubmit }: CreateMatchProps) {
-  // 状态管理
-  const [selectedOpponent, setSelectedOpponent] = useState<string>('')
+  // ===== 状态管理 =====
+  const [selectedOpponent1, setSelectedOpponent1] = useState<string>('')
+  const [selectedOpponent2, setSelectedOpponent2] = useState<string>('')
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   )
   const [matchType, setMatchType] = useState<string>('men_singles')
-  const [opponentSearch, setOpponentSearch] = useState('')
+  const [opponent1Search, setOpponent1Search] = useState('')
+  const [opponent2Search, setOpponent2Search] = useState('')
   const [partnerSearch, setPartnerSearch] = useState('')
   const [selectedPartner, setSelectedPartner] = useState<string>('')
   const [sets, setSets] = useState([
@@ -45,18 +53,22 @@ export default function CreateMatch({ currentUser, users, onCancel, onSubmit }: 
     player2_score: 0
   })
 
+  // ===== 计算和辅助函数 =====
   const isMenSingles = matchType === 'men_singles'
   const totalSets = isMenSingles ? 5 : 3
+  const isDoubles = matchType.includes('doubles')
 
   // 更新比分
   const updateSetScore = (setIndex: number, player: 'player1' | 'player2', score: number) => {
-    const newSets = [...sets]
-    if (player === 'player1') {
-      newSets[setIndex].player1_score = score
-    } else {
-      newSets[setIndex].player2_score = score
+    if (score >= 0 && score <= 7) {
+      const newSets = [...sets]
+      if (player === 'player1') {
+        newSets[setIndex].player1_score = score
+      } else {
+        newSets[setIndex].player2_score = score
+      }
+      setSets(newSets)
     }
-    setSets(newSets)
   }
 
   // 更新抢七比分
@@ -69,37 +81,73 @@ export default function CreateMatch({ currentUser, users, onCancel, onSubmit }: 
     }
   }
 
-  // 提交表单
+  // ===== 表单提交 =====
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!currentUser?.id || !selectedOpponent || !selectedDate) {
+    // 验证必填字段
+    if (!currentUser?.id || !selectedDate) {
       alert('请填写所有必要信息')
       return
     }
 
+    // 验证双打时必须选择搭档和两个对手
+    if (isDoubles) {
+      if (!selectedPartner) {
+        alert('双打比赛必须选择搭档')
+        return
+      }
+      if (!selectedOpponent1 || !selectedOpponent2) {
+        alert('双打比赛必须选择两个对手')
+        return
+      }
+    } else {
+      // 单打时必须选择一个对手
+      if (!selectedOpponent1) {
+        alert('请选择对手')
+        return
+      }
+    }
+
+    // 提交数据
     onSubmit({
       player1_id: currentUser.id,
-      player2_id: selectedOpponent,
+      player2_id: isDoubles ? selectedOpponent1 : selectedOpponent1, // 单打时使用 opponent1
       match_date: selectedDate,
-      sets: sets.map((set, index) => ({
+      match_type: matchType as 'women_singles' | 'men_singles' | 'women_doubles' | 'men_doubles' | 'mixed_singles' | 'mixed_doubles',
+      teammate_id: isDoubles ? selectedPartner : undefined,
+      opponent2_id: isDoubles ? selectedOpponent2 : undefined, // 新增：双打时的第二个对手
+      sets: sets.slice(0, totalSets).map((set, index) => ({
         set_number: index + 1,
         player1_score: set.player1_score,
-        player2_score: set.player2_score
+        player2_score: set.player2_score,
+        tiebreak: index === totalSets - 1 && (set.player1_score === 6 && set.player2_score === 7 || 
+                                            set.player1_score === 7 && set.player2_score === 6) 
+          ? tiebreakScores 
+          : undefined
       }))
     })
   }
 
+  // ===== 渲染表单 =====
   return (
     <div className="bg-white shadow rounded-lg p-6 mb-6">
       <h2 className="text-xl font-bold mb-4">创建比赛</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* 1. 比赛类型选择 - 始终在第一位 */}
+        {/* 1. 比赛类型选择 */}
         <div>
           <label className="block text-sm font-medium mb-1">比赛类型</label>
           <select
             value={matchType}
-            onChange={(e) => setMatchType(e.target.value)}
+            onChange={(e) => {
+              setMatchType(e.target.value)
+              if (!e.target.value.includes('doubles')) {
+                setSelectedPartner('')
+                setPartnerSearch('')
+                setSelectedOpponent2('')
+                setOpponent2Search('')
+              }
+            }}
             className="w-full p-2 border rounded"
             required
           >
@@ -113,7 +161,7 @@ export default function CreateMatch({ currentUser, users, onCancel, onSubmit }: 
         </div>
 
         {/* 2. 双打时显示搭档选择 */}
-        {matchType.includes('doubles') && (
+        {isDoubles && (
           <div>
             <label className="block text-sm font-medium mb-1">我的搭档</label>
             <div className="relative">
@@ -123,6 +171,7 @@ export default function CreateMatch({ currentUser, users, onCancel, onSubmit }: 
                 onChange={(e) => setPartnerSearch(e.target.value)}
                 placeholder="搜索搭档..."
                 className="w-full p-2 border rounded"
+                required
               />
               {partnerSearch && (
                 <div className="absolute z-10 w-full bg-white border rounded-lg mt-1 max-h-48 overflow-y-auto">
@@ -130,7 +179,8 @@ export default function CreateMatch({ currentUser, users, onCancel, onSubmit }: 
                     .filter(user => 
                       user.name.toLowerCase().includes(partnerSearch.toLowerCase()) &&
                       user.id !== currentUser.id &&
-                      user.id !== selectedOpponent
+                      user.id !== selectedOpponent1 &&
+                      user.id !== selectedOpponent2
                     )
                     .map(user => (
                       <div
@@ -151,39 +201,85 @@ export default function CreateMatch({ currentUser, users, onCancel, onSubmit }: 
         )}
 
         {/* 3. 选择对手 */}
-        <div>
-          <label className="block text-sm font-medium mb-1">选择对手</label>
-          <div className="relative">
-            <input
-              type="text"
-              value={opponentSearch}
-              onChange={(e) => setOpponentSearch(e.target.value)}
-              placeholder="搜索对手..."
-              className="w-full p-2 border rounded"
-            />
-            {opponentSearch && (
-              <div className="absolute z-10 w-full bg-white border rounded-lg mt-1 max-h-48 overflow-y-auto">
-                {users
-                  .filter(user => 
-                    user.name.toLowerCase().includes(opponentSearch.toLowerCase()) &&
-                    user.id !== currentUser.id &&
-                    user.id !== selectedPartner
-                  )
-                  .map(user => (
-                    <div
-                      key={user.id}
-                      className="p-2 hover:bg-gray-100 cursor-pointer"
-                      onClick={() => {
-                        setSelectedOpponent(user.id)
-                        setOpponentSearch(user.name)
-                      }}
-                    >
-                      {user.name}
-                    </div>
-                  ))}
-              </div>
-            )}
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              {isDoubles ? '对手1' : '选择对手'}
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={opponent1Search}
+                onChange={(e) => setOpponent1Search(e.target.value)}
+                placeholder={isDoubles ? '搜索对手1...' : '搜索对手...'}
+                className="w-full p-2 border rounded"
+                required
+              />
+              {opponent1Search && (
+                <div className="absolute z-10 w-full bg-white border rounded-lg mt-1 max-h-48 overflow-y-auto">
+                  {users
+                    .filter(user => 
+                      user.name.toLowerCase().includes(opponent1Search.toLowerCase()) &&
+                      user.id !== currentUser.id &&
+                      user.id !== selectedPartner &&
+                      user.id !== selectedOpponent2
+                    )
+                    .map(user => (
+                      <div
+                        key={user.id}
+                        className="p-2 hover:bg-gray-100 cursor-pointer"
+                        onClick={() => {
+                          setSelectedOpponent1(user.id)
+                          setOpponent1Search(user.name)
+                        }}
+                      >
+                        {user.name}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* 双打时显示第二个对手选择 */}
+          {isDoubles && (
+            <div>
+              <label className="block text-sm font-medium mb-1">对手2</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={opponent2Search}
+                  onChange={(e) => setOpponent2Search(e.target.value)}
+                  placeholder="搜索对手2..."
+                  className="w-full p-2 border rounded"
+                  required
+                />
+                {opponent2Search && (
+                  <div className="absolute z-10 w-full bg-white border rounded-lg mt-1 max-h-48 overflow-y-auto">
+                    {users
+                      .filter(user => 
+                        user.name.toLowerCase().includes(opponent2Search.toLowerCase()) &&
+                        user.id !== currentUser.id &&
+                        user.id !== selectedPartner &&
+                        user.id !== selectedOpponent1
+                      )
+                      .map(user => (
+                        <div
+                          key={user.id}
+                          className="p-2 hover:bg-gray-100 cursor-pointer"
+                          onClick={() => {
+                            setSelectedOpponent2(user.id)
+                            setOpponent2Search(user.name)
+                          }}
+                        >
+                          {user.name}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 4. 比赛日期 */}
@@ -223,37 +319,37 @@ export default function CreateMatch({ currentUser, users, onCancel, onSubmit }: 
                 className="w-16 p-2 border rounded"
                 required
               />
+              {/* 显示抢七输入框的条件：最后一盘且比分为6:7或7:6 */}
+              {index === totalSets - 1 && 
+               (set.player1_score === 6 && set.player2_score === 7 || 
+                set.player1_score === 7 && set.player2_score === 6) && (
+                <div className="flex items-center gap-2 ml-4">
+                  <span className="text-sm">抢七</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="99"
+                    value={tiebreakScores.player1_score}
+                    onChange={(e) => updateTiebreakScore('player1', parseInt(e.target.value) || 0)}
+                    className="w-16 p-2 border rounded"
+                  />
+                  <span>:</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="99"
+                    value={tiebreakScores.player2_score}
+                    onChange={(e) => updateTiebreakScore('player2', parseInt(e.target.value) || 0)}
+                    className="w-16 p-2 border rounded"
+                  />
+                </div>
+              )}
             </div>
           ))}
-
-          {/* 抢七比分 */}
-          <div className="mt-4">
-            <div className="flex gap-4 items-center">
-              <span className="w-32">最后一盘抢七</span>
-              <input
-                type="number"
-                min="0"
-                max="99"
-                value={tiebreakScores.player1_score}
-                onChange={(e) => updateTiebreakScore('player1', parseInt(e.target.value) || 0)}
-                className="w-16 p-2 border rounded"
-              />
-              <span>:</span>
-              <input
-                type="number"
-                min="0"
-                max="99"
-                value={tiebreakScores.player2_score}
-                onChange={(e) => updateTiebreakScore('player2', parseInt(e.target.value) || 0)}
-                className="w-16 p-2 border rounded"
-              />
-            </div>
-          </div>
         </div>
 
-
-        {/* 按钮部分保持不变 */}
-        <div className="flex justify-end gap-4">
+        {/* 6. 按钮部分 */}
+        <div className="flex justify-end gap-4 mt-6">
           <button
             type="button"
             onClick={onCancel}
