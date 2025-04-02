@@ -8,6 +8,7 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   signOut: () => Promise<void>
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>
 }
 
 // 创建认证上下文
@@ -15,6 +16,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   signOut: async () => {},
+  signIn: async () => ({ error: null }),
 })
 
 // 创建认证提供者组件
@@ -48,14 +50,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true
 
-    // 获取当前会话用户
-    const getUser = async () => {
+    const initializeAuth = async () => {
       try {
-        console.log('Getting current user...')
-        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+        // 首先检查现有会话
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
-        if (authError) {
-          console.error('Auth error:', authError)
+        if (sessionError) {
+          console.error('Session error:', sessionError)
           if (mounted) {
             setUser(null)
             setLoading(false)
@@ -63,20 +64,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return
         }
 
-        if (authUser) {
-          console.log('Auth user found:', authUser)
-          const profile = await fetchUserProfile(authUser)
+        if (session?.user) {
+          console.log('Existing session found:', session.user.id)
+          const profile = await fetchUserProfile(session.user)
           if (mounted) {
             setUser(profile)
           }
         } else {
-          console.log('No auth user found')
+          console.log('No existing session')
           if (mounted) {
             setUser(null)
           }
         }
       } catch (error) {
-        console.error('Error in getUser:', error)
+        console.error('Error in initializeAuth:', error)
         if (mounted) {
           setUser(null)
         }
@@ -107,13 +108,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     })
 
-    getUser()
+    initializeAuth()
 
     return () => {
       mounted = false
       subscription.unsubscribe()
     }
   }, [])
+
+  const signIn = async (email: string, password: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      return { error }
+    } catch (error) {
+      console.error('Error in signIn:', error)
+      return { error: error as Error }
+    }
+  }
 
   const signOut = async () => {
     try {
@@ -132,7 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   console.log('AuthContext state:', { user, loading })
 
   return (
-    <AuthContext.Provider value={{ user, loading, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signOut, signIn }}>
       {children}
     </AuthContext.Provider>
   )

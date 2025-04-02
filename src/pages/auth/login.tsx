@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { supabase } from '@/utils/supabase'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function Login() {
   const router = useRouter()
+  const { signIn } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -17,40 +18,15 @@ export default function Login() {
 
     try {
       console.log('Attempting login for:', email)
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+      const { error: signInError } = await signIn(email, password)
 
-      if (authError) {
-        console.error('Auth error:', authError)
-        throw authError
+      if (signInError) {
+        console.error('Auth error:', signInError)
+        throw signInError
       }
 
-      if (authData.user) {
-        console.log('Auth successful, checking user data...')
-        // 获取用户完整信息
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', authData.user.id)
-          .single()
-
-        if (userError) {
-          console.error('Error fetching user data:', userError)
-          throw new Error('获取用户信息失败')
-        }
-
-        console.log('User data:', userData)
-
-        // 用户存在但未启用
-        if (userData && userData.is_enabled === false) {
-          throw new Error('该账号已被禁用，请联系管理员')
-        }
-
-        // 登录成功，跳转到主页
-        router.push('/')
-      }
+      // 登录成功，跳转到主页
+      router.push('/')
     } catch (error) {
       console.error('Login process error:', error)
       setError(error instanceof Error ? error.message : '登录失败，请重试')
