@@ -7,21 +7,25 @@ import type { Database } from '@/types/database.types'
 
 type User = Database['public']['Tables']['users']['Row']
 type Match = Database['public']['Tables']['matches']['Row']
-type ProcessedMatch = Match & {
-  winner_id: string;
-  loser_id: string;
+type LeaderboardEntry = {
+  id: string
+  name: string
+  totalMatches: number
+  wonMatches: number
+  winRate: number
+  totalPoints: number
 }
 
 export default function AdminLeaderboard() {
   const { user: currentUser } = useAuth()
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
-  const [matches, setMatches] = useState<ProcessedMatch[]>([])
+  const [matches, setMatches] = useState<Match[]>([])
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const today = new Date()
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
   })
-  const [leaderboard, setLeaderboard] = useState<any[]>([])
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
 
   // 检查用户权限
@@ -71,20 +75,9 @@ export default function AdminLeaderboard() {
 
         if (matchError) throw matchError
         
-        // 处理比赛数据，确定胜者和败者
-        const processedMatches = (matchData || []).map(match => {
-          const player1Score = match.player1_score || 0
-          const player2Score = match.player2_score || 0
-          return {
-            ...match,
-            winner_id: player1Score > player2Score ? match.player1_id : match.player2_id,
-            loser_id: player1Score > player2Score ? match.player2_id : match.player1_id
-          }
-        })
-        
-        setMatches(processedMatches)
+        setMatches(matchData || [])
         // 计算并更新排行榜数据
-        calculateLeaderboard(processedMatches)
+        calculateLeaderboard(matchData || [])
         setLoading(false)
       } catch (error) {
         console.error('Error fetching data:', error)
@@ -96,7 +89,7 @@ export default function AdminLeaderboard() {
   }, [selectedMonth])
 
   // 计算排行榜
-  const calculateLeaderboard = (matchData: any[]) => {
+  const calculateLeaderboard = (matchData: Match[]) => {
     const stats: { [key: string]: { name: string, wins: number, losses: number } } = {}
 
     matchData.forEach(match => {
