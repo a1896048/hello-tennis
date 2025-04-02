@@ -30,6 +30,8 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error('Error checking admin access:', err)
       router.push('/')
+    } finally {
+      setLoading(false)
     }
   }, [currentUser, router])
 
