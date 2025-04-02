@@ -7,11 +7,16 @@ import type { Database } from '@/types/database.types'
 type User = Database['public']['Tables']['users']['Row']
 type Match = Database['public']['Tables']['matches']['Row']
 
+interface MatchWithPlayers extends Match {
+  player1: User
+  player2: User
+}
+
 export default function AdminMatches() {
   const { user: currentUser } = useAuth()
   const router = useRouter()
-  const [users, setUsers] = useState<User[]>([])
   const [matches, setMatches] = useState<Match[]>([])
+  const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
 
   const checkAdminAccess = async () => {
@@ -73,18 +78,19 @@ export default function AdminMatches() {
     fetchData()
   }, [])
 
-  const getMatchTypeLabel = (type: string) => {
-    const labels: { [key: string]: string } = {
+  const getMatchTypeLabel = (type: Match['match_type']): string => {
+    const labels: Record<Match['match_type'], string> = {
       'men_singles': '男子单打',
       'women_singles': '女子单打',
       'men_doubles': '男子双打',
       'women_doubles': '女子双打',
-      'mixed_doubles': '混合双打'
+      'mixed_doubles': '混合双打',
+      'mixed_singles': '混合单打'
     }
-    return labels[type] || type
+    return labels[type]
   }
 
-  const getUserName = (userId: string) => {
+  const getUserName = (userId: string): string => {
     return users.find(user => user.id === userId)?.name || 'Unknown'
   }
 
