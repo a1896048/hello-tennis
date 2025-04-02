@@ -16,16 +16,21 @@ interface LeaderboardEntry {
   winRate: number
 }
 
+interface MonthOption {
+  value: string
+  label: string
+}
+
 export default function AdminLeaderboard() {
   const { user: currentUser } = useAuth()
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
   const [matches, setMatches] = useState<Match[]>([])
+  const [loading, setLoading] = useState(true)
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   })
-  const [loading, setLoading] = useState(true)
 
   const checkAdminAccess = async () => {
     if (!currentUser) {
@@ -75,9 +80,9 @@ export default function AdminLeaderboard() {
         const { data: matchesData } = await supabase
           .from('matches')
           .select('*')
-          .gte('created_at', startDate.toISOString())
-          .lte('created_at', endDate.toISOString())
-          .order('created_at', { ascending: false })
+          .gte('match_date', startDate.toISOString())
+          .lte('match_date', endDate.toISOString())
+          .order('match_date', { ascending: false })
 
         if (matchesData) {
           setMatches(matchesData)
@@ -94,7 +99,7 @@ export default function AdminLeaderboard() {
   }, [selectedMonth])
 
   const calculateLeaderboard = (): LeaderboardEntry[] => {
-    const stats: { [key: string]: LeaderboardEntry } = {}
+    const stats: Record<string, LeaderboardEntry> = {}
 
     // Initialize stats for all users
     users.forEach(user => {
@@ -138,8 +143,8 @@ export default function AdminLeaderboard() {
       .sort((a, b) => b.winRate - a.winRate)
   }
 
-  const generateMonthOptions = () => {
-    const options = []
+  const generateMonthOptions = (): MonthOption[] => {
+    const options: MonthOption[] = []
     const now = new Date()
     const currentYear = now.getFullYear()
     const currentMonth = now.getMonth() + 1
