@@ -54,11 +54,25 @@ export interface Database {
           player1_id: string
           player2_id: string
           match_type: 'men_singles' | 'women_singles' | 'men_doubles' | 'women_doubles' | 'mixed_doubles' | 'mixed_singles'
+          teammate_id?: string
+          opponent2_id?: string
+          player1_score: number
+          player2_score: number
+          player1_points: number
+          player2_points: number
           score: string
           status: 'pending' | 'completed' | 'cancelled'
           tournament_id: string | null
           venue: string | null
           notes: string | null
+          sets: {
+            player1_score: number
+            player2_score: number
+            tiebreak?: {
+              player1_score: number
+              player2_score: number
+            }
+          }[]
           updated_at: string
           created_at: string
         }
@@ -68,11 +82,25 @@ export interface Database {
           player1_id: string
           player2_id: string
           match_type: 'men_singles' | 'women_singles' | 'men_doubles' | 'women_doubles' | 'mixed_doubles' | 'mixed_singles'
+          teammate_id?: string
+          opponent2_id?: string
+          player1_score?: number
+          player2_score?: number
+          player1_points?: number
+          player2_points?: number
           score?: string
           status?: 'pending' | 'completed' | 'cancelled'
           tournament_id?: string | null
           venue?: string | null
           notes?: string | null
+          sets?: {
+            player1_score: number
+            player2_score: number
+            tiebreak?: {
+              player1_score: number
+              player2_score: number
+            }
+          }[]
           updated_at?: string
           created_at?: string
         }
@@ -82,11 +110,25 @@ export interface Database {
           player1_id?: string
           player2_id?: string
           match_type?: 'men_singles' | 'women_singles' | 'men_doubles' | 'women_doubles' | 'mixed_doubles' | 'mixed_singles'
+          teammate_id?: string
+          opponent2_id?: string
+          player1_score?: number
+          player2_score?: number
+          player1_points?: number
+          player2_points?: number
           score?: string
           status?: 'pending' | 'completed' | 'cancelled'
           tournament_id?: string | null
           venue?: string | null
           notes?: string | null
+          sets?: {
+            player1_score: number
+            player2_score: number
+            tiebreak?: {
+              player1_score: number
+              player2_score: number
+            }
+          }[]
           updated_at?: string
           created_at?: string
         }
