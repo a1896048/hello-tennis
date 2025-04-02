@@ -7,13 +7,13 @@ import type { Database } from '@/types/database.types'
 
 type User = Database['public']['Tables']['users']['Row']
 type Match = Database['public']['Tables']['matches']['Row']
-type LeaderboardEntry = {
-  id: string
+
+interface LeaderboardEntry {
+  userId: string
   name: string
-  totalMatches: number
-  wonMatches: number
+  wins: number
+  losses: number
   winRate: number
-  totalPoints: number
 }
 
 export default function AdminLeaderboard() {
@@ -22,62 +22,67 @@ export default function AdminLeaderboard() {
   const [users, setUsers] = useState<User[]>([])
   const [matches, setMatches] = useState<Match[]>([])
   const [selectedMonth, setSelectedMonth] = useState(() => {
-    const today = new Date()
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   })
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
 
-  // 检查用户权限
-  useEffect(() => {
-    const checkAuth = async () => {
-      if (!currentUser) {
-        router.push('/')
-        return
-      }
+  const checkAdminAccess = async () => {
+    if (!currentUser) {
+      router.push('/')
+      return
+    }
+
+    try {
       const { data: userData } = await supabase
         .from('users')
         .select('role')
         .eq('id', currentUser.id)
         .single()
-      
+
       if (!userData || userData.role !== 'admin') {
         router.push('/')
       }
+    } catch (err) {
+      console.error('Error checking admin access:', err)
+      router.push('/')
     }
-    checkAuth()
+  }
+
+  useEffect(() => {
+    checkAdminAccess()
   }, [currentUser, router])
 
-  // 获取用户数据
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 获取用户数据
-        const { data: userData, error: userError } = await supabase
+        // Fetch users
+        const { data: usersData } = await supabase
           .from('users')
           .select('*')
           .order('created_at', { ascending: false })
 
-        if (userError) throw userError
-        setUsers(userData || [])
+        if (usersData) {
+          setUsers(usersData)
+        }
 
-        // 获取比赛数据
+        // Parse selected month
         const [year, month] = selectedMonth.split('-')
         const startDate = new Date(parseInt(year), parseInt(month) - 1, 1)
         const endDate = new Date(parseInt(year), parseInt(month), 0)
 
-        const { data: matchData, error: matchError } = await supabase
+        // Fetch matches for selected month
+        const { data: matchesData } = await supabase
           .from('matches')
           .select('*')
           .gte('created_at', startDate.toISOString())
-          .lt('created_at', endDate.toISOString())
+          .lte('created_at', endDate.toISOString())
           .order('created_at', { ascending: false })
 
-        if (matchError) throw matchError
-        
-        setMatches(matchData || [])
-        // 计算并更新排行榜数据
-        calculateLeaderboard(matchData || [])
+        if (matchesData) {
+          setMatches(matchesData)
+        }
+
         setLoading(false)
       } catch (error) {
         console.error('Error fetching data:', error)
@@ -88,76 +93,66 @@ export default function AdminLeaderboard() {
     fetchData()
   }, [selectedMonth])
 
-  // 计算排行榜
-  const calculateLeaderboard = (matchData: Match[]) => {
-    const stats: { [key: string]: { name: string, wins: number, losses: number } } = {}
+  const calculateLeaderboard = (): LeaderboardEntry[] => {
+    const stats: { [key: string]: LeaderboardEntry } = {}
 
-    matchData.forEach(match => {
-      const winnerId = match.winner_id
-      const loserId = match.loser_id
-
-      // 初始化或更新获胜者数据
-      if (!stats[winnerId]) {
-        stats[winnerId] = {
-          name: users.find(user => user.id === winnerId)?.name || '',
-          wins: 1,
-          losses: 0
-        }
-      } else {
-        stats[winnerId].wins += 1
-      }
-
-      // 初始化或更新失败者数据
-      if (!stats[loserId]) {
-        stats[loserId] = {
-          name: users.find(user => user.id === loserId)?.name || '',
-          wins: 0,
-          losses: 1
-        }
-      } else {
-        stats[loserId].losses += 1
+    // Initialize stats for all users
+    users.forEach(user => {
+      stats[user.id] = {
+        userId: user.id,
+        name: user.name || 'Unknown',
+        wins: 0,
+        losses: 0,
+        winRate: 0
       }
     })
 
-    // 转换为数组并排序
-    const leaderboardData = Object.entries(stats)
-      .map(([id, data]) => ({
-        id,
-        name: data.name,
-        wins: data.wins,
-        losses: data.losses,
-        total: data.wins + data.losses,
-        winRate: data.wins / (data.wins + data.losses) * 100
-      }))
-      .filter(player => player.total >= 1) // 只显示至少参与过一场比赛的用户
-      .sort((a, b) => {
-        if (b.winRate !== a.winRate) {
-          return b.winRate - a.winRate // 首先按胜率排序
-        }
-        if (b.total !== a.total) {
-          return b.total - a.total // 其次按总场次排序
-        }
-        return b.wins - a.wins // 最后按胜场数排序
-      })
+    // Calculate wins and losses
+    matches.forEach(match => {
+      const scores = match.score.split('-').map(Number)
+      if (scores.length !== 2) return
 
-    setLeaderboard(leaderboardData)
+      const [player1Score, player2Score] = scores
+      const player1Id = match.player1_id
+      const player2Id = match.player2_id
+
+      if (!stats[player1Id] || !stats[player2Id]) return
+
+      if (player1Score > player2Score) {
+        stats[player1Id].wins++
+        stats[player2Id].losses++
+      } else if (player2Score > player1Score) {
+        stats[player2Id].wins++
+        stats[player1Id].losses++
+      }
+    })
+
+    // Calculate win rates and convert to array
+    return Object.values(stats)
+      .map(entry => ({
+        ...entry,
+        winRate: entry.wins + entry.losses > 0
+          ? Math.round((entry.wins / (entry.wins + entry.losses)) * 100)
+          : 0
+      }))
+      .sort((a, b) => b.winRate - a.winRate)
   }
 
-  // 生成月份选项
   const generateMonthOptions = () => {
     const options = []
-    const currentDate = new Date()
-    const currentYear = currentDate.getFullYear()
-    const currentMonth = currentDate.getMonth() + 1
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth() + 1
 
-    // 生成从当前月份往前12个月的选项
     for (let i = 0; i < 12; i++) {
       let year = currentYear
       let month = currentMonth - i
+      
       if (month <= 0) {
         month += 12
         year -= 1
       }
+
       const value = `${year}-${String(month).padStart(2, '0')}`
       const label = `${year}年${month}月`
       options.push({ value, label })
@@ -166,21 +161,24 @@ export default function AdminLeaderboard() {
     return options
   }
 
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">月度排行榜</h1>
-        <Link href="/admin/users" className="text-gray-600 hover:text-gray-900">
-          返回
-        </Link>
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
+    )
+  }
 
-      {/* 月份选择器 */}
-      <div className="mb-6">
+  const leaderboard = calculateLeaderboard()
+
+  return (
+    <div className="container mx-auto p-4">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">排行榜管理</h1>
         <select
           value={selectedMonth}
           onChange={(e) => setSelectedMonth(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+          className="border rounded px-3 py-2"
         >
           {generateMonthOptions().map(option => (
             <option key={option.value} value={option.value}>
@@ -190,69 +188,50 @@ export default function AdminLeaderboard() {
         </select>
       </div>
 
-      {loading ? (
-        <div className="text-center py-4">加载中...</div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* 排行榜 */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">排行榜</h2>
-            <div className="overflow-x-auto">
-              <table className="min-w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="py-2 px-4 text-left">排名</th>
-                    <th className="py-2 px-4 text-left">用户</th>
-                    <th className="py-2 px-4 text-right">胜/负</th>
-                    <th className="py-2 px-4 text-right">胜率</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leaderboard.map((player, index) => (
-                    <tr key={player.id} className="border-b last:border-0">
-                      <td className="py-2 px-4">{index + 1}</td>
-                      <td className="py-2 px-4">{player.name}</td>
-                      <td className="py-2 px-4 text-right">
-                        {player.wins}/{player.losses}
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        {player.winRate.toFixed(1)}%
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* 本月比赛记录 */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">比赛记录</h2>
-            <div className="overflow-x-auto">
-              <table className="min-w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="py-2 px-4 text-left">日期</th>
-                    <th className="py-2 px-4 text-left">获胜者</th>
-                    <th className="py-2 px-4 text-left">失败者</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {matches.map((match) => (
-                    <tr key={match.id} className="border-b last:border-0">
-                      <td className="py-2 px-4">
-                        {new Date(match.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="py-2 px-4">{users.find(user => user.id === match.winner_id)?.name}</td>
-                      <td className="py-2 px-4">{users.find(user => user.id === match.loser_id)?.name}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                排名
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                用户名
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                胜场
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                负场
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                胜率
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {leaderboard.map((entry, index) => (
+              <tr key={entry.userId}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {index + 1}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  {entry.name}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {entry.wins}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {entry.losses}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {entry.winRate}%
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 } 
