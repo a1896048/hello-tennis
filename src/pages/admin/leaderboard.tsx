@@ -20,6 +20,10 @@ interface MonthOption {
   label: string
 }
 
+interface LeaderboardStats {
+  [key: string]: LeaderboardEntry
+}
+
 export default function AdminLeaderboard() {
   const { user: currentUser } = useAuth()
   const router = useRouter()
@@ -98,7 +102,7 @@ export default function AdminLeaderboard() {
   }, [selectedMonth])
 
   const calculateLeaderboard = (): LeaderboardEntry[] => {
-    const stats: Record<string, LeaderboardEntry> = {}
+    const stats: LeaderboardStats = {}
 
     // Initialize stats for all users
     users.forEach(user => {

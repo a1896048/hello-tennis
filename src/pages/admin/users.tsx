@@ -1,16 +1,55 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/utils/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
+import type { Database } from '@/types/database.types'
+
+type User = Database['public']['Tables']['users']['Row']
+
+interface UserWithStats {
+  id: string
+  name: string
+  email: string
+  role: string
+  created_at: string
+  matches_played: number
+  win_rate: number
+}
 
 export default function UserManagement() {
   const { user: currentUser, loading: authLoading } = useAuth()
   const router = useRouter()
-  const [users, setUsers] = useState<any[]>([])
-  const [allUsers, setAllUsers] = useState<any[]>([])  // 存储所有用户
+  const [users, setUsers] = useState<UserWithStats[]>([])
+  const [allUsers, setAllUsers] = useState<User[]>([])  // 存储所有用户
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')  // 搜索关键词
+
+  const checkAdminAccess = useCallback(async () => {
+    if (!currentUser) {
+      router.push('/')
+      return
+    }
+
+    try {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', currentUser.id)
+        .single()
+
+      if (!userData || userData.role !== 'admin') {
+        router.push('/')
+      }
+    } catch (err) {
+      console.error('Error checking admin access:', err)
+      router.push('/')
+    }
+  }, [currentUser, router])
+
+  useEffect(() => {
+    checkAdminAccess()
+  }, [checkAdminAccess])
 
   // 获取所有用户
   useEffect(() => {
@@ -47,13 +86,6 @@ export default function UserManagement() {
     )
     setUsers(filteredUsers)
   }, [searchTerm, allUsers])
-
-  // 检查权限
-  useEffect(() => {
-    if (!authLoading && (!currentUser || currentUser.role !== 'admin')) {
-      router.push('/')
-    }
-  }, [authLoading, currentUser, router])
 
   // 删除用户
   const deleteUser = async (userId: string, userName: string) => {

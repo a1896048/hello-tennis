@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/utils/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/router'
@@ -14,7 +14,7 @@ export default function AdminMatches() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
 
-  const checkAdminAccess = async () => {
+  const checkAdminAccess = useCallback(async () => {
     if (!currentUser) {
       router.push('/')
       return
@@ -34,30 +34,40 @@ export default function AdminMatches() {
       console.error('Error checking admin access:', err)
       router.push('/')
     }
-  }
+  }, [currentUser, router])
 
   useEffect(() => {
     checkAdminAccess()
-  }, [currentUser, router])
+  }, [checkAdminAccess])
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         // Fetch users
-        const { data: usersData } = await supabase
+        const { data: usersData, error: usersError } = await supabase
           .from('users')
           .select('*')
           .order('created_at', { ascending: false })
+
+        if (usersError) {
+          console.error('Error fetching users:', usersError)
+          return
+        }
 
         if (usersData) {
           setUsers(usersData)
         }
 
         // Fetch matches
-        const { data: matchesData } = await supabase
+        const { data: matchesData, error: matchesError } = await supabase
           .from('matches')
           .select('*')
           .order('match_date', { ascending: false })
+
+        if (matchesError) {
+          console.error('Error fetching matches:', matchesError)
+          return
+        }
 
         if (matchesData) {
           setMatches(matchesData)

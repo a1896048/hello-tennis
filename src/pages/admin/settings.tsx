@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/utils/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/router'
@@ -6,7 +6,7 @@ import type { Database } from '@/types/database.types'
 
 type User = Database['public']['Tables']['users']['Row']
 
-interface Settings {
+interface SystemSettings {
   allowRegistration: boolean
   matchApprovalRequired: boolean
   maxMatchesPerDay: number
@@ -17,13 +17,13 @@ export default function AdminSettings() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [settings, setSettings] = useState<Settings>({
+  const [settings, setSettings] = useState<SystemSettings>({
     allowRegistration: true,
     matchApprovalRequired: true,
     maxMatchesPerDay: 3
   })
 
-  const checkAdminAccess = async () => {
+  const checkAdminAccess = useCallback(async () => {
     if (!currentUser) {
       router.push('/')
       return
@@ -43,11 +43,11 @@ export default function AdminSettings() {
       console.error('Error checking admin access:', err)
       router.push('/')
     }
-  }
+  }, [currentUser, router])
 
   useEffect(() => {
     checkAdminAccess()
-  }, [currentUser, router])
+  }, [checkAdminAccess])
 
   useEffect(() => {
     const loadSettings = async () => {
