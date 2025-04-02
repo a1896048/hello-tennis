@@ -3,29 +3,33 @@ import { useState } from 'react'
 
 // 定义 User 类型
 type User = Database['public']['Tables']['users']['Row']
+type Match = Database['public']['Tables']['matches']['Row']
+
+type Set = {
+  player1_score: number
+  player2_score: number
+  tiebreak?: {
+    player1_score: number
+    player2_score: number
+  }
+}
+
+type CreateMatchData = {
+  player1_id: string
+  player2_id: string
+  match_date: string
+  match_type: 'women_singles' | 'men_singles' | 'women_doubles' | 'men_doubles' | 'mixed_singles' | 'mixed_doubles'
+  teammate_id?: string
+  opponent2_id?: string
+  sets: Set[]
+}
 
 // 定义组件的 props 类型
 interface CreateMatchProps {
   currentUser: User
   users: User[]
   onClose: () => void
-  onSubmit: (matchData: {
-    player1_id: string
-    player2_id: string
-    match_date: string
-    match_type: 'women_singles' | 'men_singles' | 'women_doubles' | 'men_doubles' | 'mixed_singles' | 'mixed_doubles'
-    teammate_id?: string
-    opponent2_id?: string
-    sets: Array<{
-      set_number: number
-      player1_score: number
-      player2_score: number
-      tiebreak?: {
-        player1_score: number
-        player2_score: number
-      }
-    }>
-  }) => void
+  onSubmit: (matchData: CreateMatchData) => void
 }
 
 export default function CreateMatch({ currentUser, users, onClose, onSubmit }: CreateMatchProps) {
@@ -374,6 +378,7 @@ export default function CreateMatch({ currentUser, users, onClose, onSubmit }: C
         </button>
         <button
           type="submit"
+          onClick={handleSubmit}
           className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
         >
           保存
