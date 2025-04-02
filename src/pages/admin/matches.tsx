@@ -149,7 +149,15 @@ export default function AdminMatches() {
                   {getUserName(match.player2_id)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {match.score}
+                  {match.sets.map((set, index) => (
+                    <span key={index}>
+                      {set.player1_score}:{set.player2_score}
+                      {set.tiebreak && (
+                        <sup>({set.tiebreak.player1_score}:{set.tiebreak.player2_score})</sup>
+                      )}
+                      {index < match.sets.length - 1 ? ', ' : ''}
+                    </span>
+                  ))}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <button

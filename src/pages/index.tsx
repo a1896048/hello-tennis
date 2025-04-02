@@ -30,6 +30,22 @@ type MatchData = {
   player2_id: string
   match_type: 'women_singles' | 'men_singles' | 'women_doubles' | 'men_doubles' | 'mixed_singles' | 'mixed_doubles'
   teammate_id?: string
+  opponent2_id?: string
+  status: 'completed'
+  player1_score: number
+  player2_score: number
+  player1_points: number
+  player2_points: number
+}
+
+type CreateMatchData = {
+  sets: Set[]
+  match_date: string
+  player1_id: string
+  player2_id: string
+  match_type: 'women_singles' | 'men_singles' | 'women_doubles' | 'men_doubles' | 'mixed_singles' | 'mixed_doubles'
+  teammate_id?: string
+  opponent2_id?: string
 }
 
 // 主页组件
@@ -138,7 +154,7 @@ export default function Home() {
 
   // ===== 比赛相关函数 =====
   // 创建新比赛
-  const handleCreateMatch = useCallback(async (matchData: MatchData) => {
+  const handleCreateMatch = useCallback(async (matchData: CreateMatchData) => {
     try {
       // 计算总分
       const player1TotalScore = matchData.sets.reduce((sum: number, set: Set) => sum + set.player1_score, 0)

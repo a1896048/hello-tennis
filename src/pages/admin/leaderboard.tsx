@@ -113,10 +113,8 @@ export default function AdminLeaderboard() {
 
     // Calculate wins and losses
     matches.forEach(match => {
-      const scores = match.score.split('-').map(Number)
-      if (scores.length !== 2) return
-
-      const [player1Score, player2Score] = scores
+      const player1Score = match.player1_score
+      const player2Score = match.player2_score
       const player1Id = match.player1_id
       const player2Id = match.player2_id
 
@@ -139,7 +137,7 @@ export default function AdminLeaderboard() {
           ? Math.round((entry.wins / (entry.wins + entry.losses)) * 100)
           : 0
       }))
-      .sort((a, b) => b.winRate - a.winRate)
+      .sort((a, b) => b.winRate - a.winRate || b.wins - a.wins)  // Sort by win rate, then by total wins
   }
 
   const generateMonthOptions = (): MonthOption[] => {
