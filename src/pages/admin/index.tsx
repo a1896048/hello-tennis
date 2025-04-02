@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '@/utils/supabase'
 import { User } from '@/types/user'
@@ -9,21 +9,16 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<User | null>(null)
 
-  useEffect(() => {
-    checkAdminAccess()
-    fetchUsers()
-  }, [])
-
-  const checkAdminAccess = async () => {
+  const checkAdminAccess = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      const { data: userData, error } = await supabase
+      const { data: userData, error: authError } = await supabase
         .from('users')
         .select('*')
         .eq('id', user.id)
         .single()
 
-      if (error || userData?.role !== 'admin') {
+      if (authError || userData?.role !== 'admin') {
         router.push('/')
         return
       }
@@ -31,9 +26,9 @@ export default function AdminDashboard() {
     } else {
       router.push('/auth/login')
     }
-  }
+  }, [router])
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     const { data, error } = await supabase
       .from('users')
       .select('*')
@@ -43,7 +38,12 @@ export default function AdminDashboard() {
       setUsers(data)
     }
     setLoading(false)
-  }
+  }, [])
+
+  useEffect(() => {
+    checkAdminAccess()
+    fetchUsers()
+  }, [checkAdminAccess, fetchUsers])
 
   const handleDeleteUser = async (userId: string) => {
     if (!window.confirm('确定要删除此用户吗？')) return

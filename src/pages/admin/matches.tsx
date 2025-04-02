@@ -2,36 +2,39 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/utils/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/router'
+import type { Database } from '@/types/database.types'
+
+type User = Database['public']['Tables']['users']['Row']
+type Match = Database['public']['Tables']['matches']['Row']
 
 export default function MatchManagement() {
   const { user: currentUser, loading: authLoading } = useAuth()
   const router = useRouter()
-  const [matches, setMatches] = useState<any[]>([])
-  const [users, setUsers] = useState<any[]>([])
+  const [matches, setMatches] = useState<Match[]>([])
+  const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
 
   // 获取所有比赛和用户
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 获取比赛数据
-        const { data: matchData, error: matchError } = await supabase
-          .from('matches')
-          .select('*, player1:player1_id(*), player2:player2_id(*)')
-          .order('match_date', { ascending: false })
-
-        if (matchError) throw matchError
-
         // 获取用户数据
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('*')
-          .order('name')
+          .order('created_at', { ascending: false })
 
         if (userError) throw userError
-
-        setMatches(matchData || [])
         setUsers(userData || [])
+
+        // 获取比赛数据
+        const { data: matchData, error: matchError } = await supabase
+          .from('matches')
+          .select('*')
+          .order('created_at', { ascending: false })
+
+        if (matchError) throw matchError
+        setMatches(matchData || [])
       } catch (error) {
         console.error('Error fetching data:', error)
       } finally {
@@ -44,9 +47,22 @@ export default function MatchManagement() {
 
   // 检查权限
   useEffect(() => {
-    if (!authLoading && (!currentUser || currentUser.role !== 'admin')) {
-      router.push('/')
+    const checkAuth = async () => {
+      if (!authLoading && currentUser) {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', currentUser.id)
+          .single()
+        
+        if (!userData || userData.role !== 'admin') {
+          router.push('/')
+        }
+      } else if (!authLoading) {
+        router.push('/')
+      }
     }
+    checkAuth()
   }, [authLoading, currentUser, router])
 
   // 删除比赛
@@ -71,7 +87,7 @@ export default function MatchManagement() {
   }
 
   // 更新比赛状态
-  const updateMatchStatus = async (matchId: string, newStatus: string) => {
+  const updateMatchStatus = async (matchId: string, newStatus: 'pending' | 'completed' | 'cancelled') => {
     try {
       const { error } = await supabase
         .from('matches')
@@ -99,8 +115,8 @@ export default function MatchManagement() {
     )
   }
 
-  if (!currentUser || currentUser.role !== 'admin') {
-    return null
+  const getPlayerName = (playerId: string) => {
+    return users.find(user => user.id === playerId)?.name || '未知'
   }
 
   return (
@@ -147,13 +163,13 @@ export default function MatchManagement() {
                     {new Date(match.match_date).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {match.player1?.name}
+                    {getPlayerName(match.player1_id)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {match.player2?.name}
+                    {getPlayerName(match.player2_id)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {match.score || '-'}
+                    {`${match.player1_score || 0} - ${match.player2_score || 0}`}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -170,7 +186,7 @@ export default function MatchManagement() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <select
                       value={match.status}
-                      onChange={(e) => updateMatchStatus(match.id, e.target.value)}
+                      onChange={(e) => updateMatchStatus(match.id, e.target.value as 'pending' | 'completed' | 'cancelled')}
                       className="mr-2 rounded border-gray-300"
                     >
                       <option value="pending">待进行</option>

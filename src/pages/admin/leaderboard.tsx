@@ -3,117 +3,110 @@ import { supabase } from '@/utils/supabase'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/router'
+import type { Database } from '@/types/database.types'
+
+type User = Database['public']['Tables']['users']['Row']
+type Match = Database['public']['Tables']['matches']['Row']
+type ProcessedMatch = Match & {
+  winner_id: string;
+  loser_id: string;
+}
 
 export default function AdminLeaderboard() {
-  const { currentUser } = useAuth()
+  const { user: currentUser } = useAuth()
   const router = useRouter()
-  const [matches, setMatches] = useState<any[]>([])
+  const [users, setUsers] = useState<User[]>([])
+  const [matches, setMatches] = useState<ProcessedMatch[]>([])
   const [selectedMonth, setSelectedMonth] = useState(() => {
-    const now = new Date()
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const today = new Date()
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
   })
   const [leaderboard, setLeaderboard] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   // 检查用户权限
   useEffect(() => {
-    if (!currentUser) {
-      router.push('/')
-      return
+    const checkAuth = async () => {
+      if (!currentUser) {
+        router.push('/')
+        return
+      }
+      const { data: userData } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', currentUser.id)
+        .single()
+      
+      if (!userData || userData.role !== 'admin') {
+        router.push('/')
+      }
     }
+    checkAuth()
   }, [currentUser, router])
 
-  // 获取指定月份的比赛数据
+  // 获取用户数据
   useEffect(() => {
-    const fetchMatches = async () => {
+    const fetchData = async () => {
       try {
-        if (!currentUser) return
-
-        setLoading(true)
-        const [year, month] = selectedMonth.split('-')
-        
-        // 构建日期范围字符串
-        const startDate = `${year}-${month}-01`
-        const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
-        const endDate = `${year}-${month}-${lastDay}`
-
-        // 获取比赛数据
-        const { data: matchesData, error: matchesError } = await supabase
-          .from('matches')
-          .select('id, created_at, winner_id, loser_id')
-          .gte('created_at', startDate)
-          .lt('created_at', endDate)
+        // 获取用户数据
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
           .order('created_at', { ascending: false })
 
-        if (matchesError) {
-          console.error('Error fetching matches:', matchesError)
-          alert('获取比赛数据失败：' + matchesError.message)
-          setLoading(false)
-          return
-        }
+        if (userError) throw userError
+        setUsers(userData || [])
 
-        if (!matchesData || matchesData.length === 0) {
-          setMatches([])
-          setLeaderboard([])
-          setLoading(false)
-          return
-        }
+        // 获取比赛数据
+        const [year, month] = selectedMonth.split('-')
+        const startDate = new Date(parseInt(year), parseInt(month) - 1, 1)
+        const endDate = new Date(parseInt(year), parseInt(month), 0)
 
-        // 获取用户数据
-        const { data: usersData, error: usersError } = await supabase
-          .from('users')
-          .select('id, name')
+        const { data: matchData, error: matchError } = await supabase
+          .from('matches')
+          .select('*')
+          .gte('created_at', startDate.toISOString())
+          .lt('created_at', endDate.toISOString())
+          .order('created_at', { ascending: false })
 
-        if (usersError) {
-          console.error('Error fetching users:', usersError)
-          alert('获取用户数据失败：' + usersError.message)
-          setLoading(false)
-          return
-        }
-
-        // 创建用户查找映射
-        const userMap = new Map(usersData.map(user => [user.id, user]))
-
-        // 处理数据
-        const processedMatches = matchesData
-          .filter(match => userMap.has(match.winner_id) && userMap.has(match.loser_id))
-          .map(match => ({
-            id: match.id,
-            created_at: match.created_at,
-            winner: userMap.get(match.winner_id),
-            loser: userMap.get(match.loser_id)
-          }))
-
+        if (matchError) throw matchError
+        
+        // 处理比赛数据，确定胜者和败者
+        const processedMatches = (matchData || []).map(match => {
+          const player1Score = match.player1_score || 0
+          const player2Score = match.player2_score || 0
+          return {
+            ...match,
+            winner_id: player1Score > player2Score ? match.player1_id : match.player2_id,
+            loser_id: player1Score > player2Score ? match.player2_id : match.player1_id
+          }
+        })
+        
         setMatches(processedMatches)
+        // 计算并更新排行榜数据
         calculateLeaderboard(processedMatches)
-      } catch (err) {
-        console.error('Unexpected error:', err)
-        alert('发生未知错误，请重试')
-      } finally {
+        setLoading(false)
+      } catch (error) {
+        console.error('Error fetching data:', error)
         setLoading(false)
       }
     }
 
-    fetchMatches()
-  }, [selectedMonth, currentUser])
-
-  // 如果用户未登录，显示加载状态
-  if (!currentUser) {
-    return <div className="text-center py-4">加载中...</div>
-  }
+    fetchData()
+  }, [selectedMonth])
 
   // 计算排行榜
   const calculateLeaderboard = (matchData: any[]) => {
     const stats: { [key: string]: { name: string, wins: number, losses: number } } = {}
 
     matchData.forEach(match => {
-      const winnerId = match.winner.id
-      const loserId = match.loser.id
+      const winnerId = match.winner_id
+      const loserId = match.loser_id
 
       // 初始化或更新获胜者数据
       if (!stats[winnerId]) {
         stats[winnerId] = {
-          name: match.winner.name,
+          name: users.find(user => user.id === winnerId)?.name || '',
           wins: 1,
           losses: 0
         }
@@ -124,7 +117,7 @@ export default function AdminLeaderboard() {
       // 初始化或更新失败者数据
       if (!stats[loserId]) {
         stats[loserId] = {
-          name: match.loser.name,
+          name: users.find(user => user.id === loserId)?.name || '',
           wins: 0,
           losses: 1
         }
@@ -257,8 +250,8 @@ export default function AdminLeaderboard() {
                       <td className="py-2 px-4">
                         {new Date(match.created_at).toLocaleDateString()}
                       </td>
-                      <td className="py-2 px-4">{match.winner.name}</td>
-                      <td className="py-2 px-4">{match.loser.name}</td>
+                      <td className="py-2 px-4">{users.find(user => user.id === match.winner_id)?.name}</td>
+                      <td className="py-2 px-4">{users.find(user => user.id === match.loser_id)?.name}</td>
                     </tr>
                   ))}
                 </tbody>

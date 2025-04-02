@@ -47,6 +47,7 @@ export default function Home() {
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
   })
   const router = useRouter()
+  const [loading, setLoading] = useState(true)
 
   // ===== 数据获取函数 =====
   // 获取比赛记录
@@ -107,6 +108,7 @@ export default function Home() {
       fetchMatches()
       fetchUsers()
     }
+    setLoading(false)
   }, [currentUser?.id, fetchMatches, fetchUsers])
 
   // 获取月度数据
@@ -248,7 +250,7 @@ export default function Home() {
   }, [selectedMonth, currentUser])
 
   // 如果正在加载认证状态，显示加载中
-  if (authLoading) {
+  if (loading) {
     console.log('Auth loading...')
     return (
       <div className="flex items-center justify-center min-h-screen">
