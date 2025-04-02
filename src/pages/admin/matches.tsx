@@ -7,11 +7,6 @@ import type { Database } from '@/types/database.types'
 type User = Database['public']['Tables']['users']['Row']
 type Match = Database['public']['Tables']['matches']['Row']
 
-interface MatchWithPlayers extends Match {
-  player1: User
-  player2: User
-}
-
 export default function AdminMatches() {
   const { user: currentUser } = useAuth()
   const router = useRouter()
