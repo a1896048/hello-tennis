@@ -3,8 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   images: {
     domains: ['xsgames.co', 'localhost', 'tpggbvxrgikvscazgage.supabase.co']
-  },
-  output: 'standalone'
+  }
 }
 
 module.exports = nextConfig
