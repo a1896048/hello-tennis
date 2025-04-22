@@ -7,23 +7,17 @@ import type { Database } from '@/types/database.types'
 
 type User = Database['public']['Tables']['users']['Row']
 
-interface UserWithStats {
-  id: string
-  name: string
-  email: string
-  role: string
-  created_at: string
-  matches_played: number
-  win_rate: number
+interface UserWithStats extends User {
+  matches_played?: number
+  win_rate?: number
 }
 
 export default function UserManagement() {
   const { user: currentUser, loading: authLoading } = useAuth()
   const router = useRouter()
   const [users, setUsers] = useState<UserWithStats[]>([])
-  const [allUsers, setAllUsers] = useState<User[]>([])  // 存储所有用户
   const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')  // 搜索关键词
+  const [searchTerm, setSearchTerm] = useState('')
 
   const checkAdminAccess = useCallback(async () => {
     if (!currentUser) {
@@ -55,14 +49,35 @@ export default function UserManagement() {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const { data, error } = await supabase
+        const { data: usersData, error: usersError } = await supabase
           .from('users')
           .select('*')
           .order('created_at', { ascending: false })
 
-        if (error) throw error
-        setAllUsers(data || [])  // 保存所有用户
-        setUsers(data || [])     // 初始显示所有用户
+        if (usersError) throw usersError
+
+        // 获取每个用户的比赛统计
+        const usersWithStats = await Promise.all((usersData || []).map(async (user) => {
+          const { data: matchesData } = await supabase
+            .from('matches')
+            .select('*')
+            .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
+
+          const matches = matchesData || []
+          const matches_played = matches.length
+          const wins = matches.filter(match => 
+            (match.player1_id === user.id && match.player1_score > match.player2_score) ||
+            (match.player2_id === user.id && match.player2_score > match.player1_score)
+          ).length
+
+          return {
+            ...user,
+            matches_played,
+            win_rate: matches_played > 0 ? (wins / matches_played) * 100 : 0
+          }
+        }))
+
+        setUsers(usersWithStats)
       } catch (error) {
         console.error('Error fetching users:', error)
       } finally {
@@ -74,18 +89,12 @@ export default function UserManagement() {
   }, [])
 
   // 搜索用户
-  useEffect(() => {
-    if (searchTerm.trim() === '') {
-      setUsers(allUsers)  // 如果搜索框为空，显示所有用户
-      return
-    }
-
-    const filteredUsers = allUsers.filter(user => 
-      (user.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-    )
-    setUsers(filteredUsers)
-  }, [searchTerm, allUsers])
+  const filteredUsers = searchTerm.trim() === ''
+    ? users
+    : users.filter(user => 
+        (user.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+      )
 
   // 删除用户
   const deleteUser = async (userId: string, userName: string) => {
@@ -220,7 +229,7 @@ export default function UserManagement() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {users.map(user => (
+              {filteredUsers.map(user => (
                 <tr key={user.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {user.name}

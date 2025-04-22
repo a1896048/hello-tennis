@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/utils/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/router'
@@ -25,7 +25,7 @@ export default function EditMatch() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
-  const checkAdminAccess = async () => {
+  const checkAdminAccess = useCallback(async () => {
     if (!currentUser) {
       router.push('/')
       return
@@ -45,11 +45,11 @@ export default function EditMatch() {
       console.error('Error checking admin access:', err)
       router.push('/')
     }
-  }
+  }, [currentUser, router])
 
   useEffect(() => {
     checkAdminAccess()
-  }, [currentUser, router])
+  }, [checkAdminAccess])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -133,6 +133,33 @@ export default function EditMatch() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleSetScoreChange = (index: number, field: 'player1_score' | 'player2_score', value: string) => {
+    if (!match) return
+
+    const newSets = [...match.sets]
+    newSets[index] = {
+      ...newSets[index],
+      [field]: parseInt(value) || 0
+    }
+
+    setMatch({ ...match, sets: newSets })
+  }
+
+  const handleTiebreakScoreChange = (index: number, field: 'player1_score' | 'player2_score', value: string) => {
+    if (!match) return
+
+    const newSets = [...match.sets]
+    newSets[index] = {
+      ...newSets[index],
+      tiebreak: {
+        ...(newSets[index].tiebreak || { player1_score: 0, player2_score: 0 }),
+        [field]: parseInt(value) || 0
+      }
+    }
+
+    setMatch({ ...match, sets: newSets })
   }
 
   if (loading) {
@@ -267,14 +294,7 @@ export default function EditMatch() {
                   min="0"
                   max="7"
                   value={set.player1_score}
-                  onChange={(e) => {
-                    const newSets = [...match.sets]
-                    newSets[index] = {
-                      ...newSets[index],
-                      player1_score: parseInt(e.target.value) || 0
-                    }
-                    setMatch({ ...match, sets: newSets })
-                  }}
+                  onChange={(e) => handleSetScoreChange(index, 'player1_score', e.target.value)}
                   className="w-16 p-2 border rounded"
                 />
                 <span>:</span>
@@ -283,14 +303,7 @@ export default function EditMatch() {
                   min="0"
                   max="7"
                   value={set.player2_score}
-                  onChange={(e) => {
-                    const newSets = [...match.sets]
-                    newSets[index] = {
-                      ...newSets[index],
-                      player2_score: parseInt(e.target.value) || 0
-                    }
-                    setMatch({ ...match, sets: newSets })
-                  }}
+                  onChange={(e) => handleSetScoreChange(index, 'player2_score', e.target.value)}
                   className="w-16 p-2 border rounded"
                 />
                 {/* 抢七比分 */}
@@ -303,17 +316,7 @@ export default function EditMatch() {
                       min="0"
                       max="99"
                       value={set.tiebreak?.player1_score || 0}
-                      onChange={(e) => {
-                        const newSets = [...match.sets]
-                        newSets[index] = {
-                          ...newSets[index],
-                          tiebreak: {
-                            ...newSets[index].tiebreak || {},
-                            player1_score: parseInt(e.target.value) || 0
-                          }
-                        }
-                        setMatch({ ...match, sets: newSets })
-                      }}
+                      onChange={(e) => handleTiebreakScoreChange(index, 'player1_score', e.target.value)}
                       className="w-16 p-2 border rounded"
                     />
                     <span>:</span>
@@ -322,17 +325,7 @@ export default function EditMatch() {
                       min="0"
                       max="99"
                       value={set.tiebreak?.player2_score || 0}
-                      onChange={(e) => {
-                        const newSets = [...match.sets]
-                        newSets[index] = {
-                          ...newSets[index],
-                          tiebreak: {
-                            ...newSets[index].tiebreak || {},
-                            player2_score: parseInt(e.target.value) || 0
-                          }
-                        }
-                        setMatch({ ...match, sets: newSets })
-                      }}
+                      onChange={(e) => handleTiebreakScoreChange(index, 'player2_score', e.target.value)}
                       className="w-16 p-2 border rounded"
                     />
                   </div>

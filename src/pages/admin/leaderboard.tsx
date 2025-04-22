@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/utils/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/router'
@@ -30,12 +30,11 @@ export default function AdminLeaderboard() {
   const [users, setUsers] = useState<User[]>([])
   const [matches, setMatches] = useState<Match[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    const now = new Date()
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  })
+  const [selectedMonth, setSelectedMonth] = useState<string>(
+    new Date().toISOString().slice(0, 7)
+  )
 
-  const checkAdminAccess = async () => {
+  const checkAdminAccess = useCallback(async () => {
     if (!currentUser) {
       router.push('/')
       return
@@ -55,11 +54,11 @@ export default function AdminLeaderboard() {
       console.error('Error checking admin access:', err)
       router.push('/')
     }
-  }
+  }, [currentUser, router])
 
   useEffect(() => {
     checkAdminAccess()
-  }, [currentUser, router])
+  }, [checkAdminAccess])
 
   useEffect(() => {
     const fetchData = async () => {
