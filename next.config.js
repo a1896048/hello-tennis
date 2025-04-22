@@ -1,9 +1,7 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
+module.exports = {
   reactStrictMode: true,
   images: {
-    domains: ['xsgames.co', 'localhost', 'tpggbvxrgikvscazgage.supabase.co']
+    domains: ['localhost', 'tpggbvxrgikvscazgage.supabase.co'],
   }
-}
-
-module.exports = nextConfig
+};
