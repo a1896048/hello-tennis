@@ -9,43 +9,40 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      users: {
         Row: {
           id: string
-          email: string
           name: string
-          gender: 'male' | 'female'
+          email: string
           role: 'admin' | 'user'
           is_enabled: boolean
+          avatar_url: string | null
+          updated_at: string
           created_at: string
-          total_points: number
-          total_matches: number
-          won_matches: number
         }
         Insert: {
-          id: string
-          email: string
+          id?: string
           name: string
-          gender: 'male' | 'female'
+          email: string
           role?: 'admin' | 'user'
           is_enabled?: boolean
+          avatar_url?: string | null
+          updated_at?: string
           created_at?: string
-          total_points?: number
-          total_matches?: number
-          won_matches?: number
         }
         Update: {
           id?: string
-          email?: string
           name?: string
-          gender?: 'male' | 'female'
+          email?: string
           role?: 'admin' | 'user'
           is_enabled?: boolean
+          avatar_url?: string | null
+          updated_at?: string
           created_at?: string
-          total_points?: number
-          total_matches?: number
-          won_matches?: number
         }
+        Relationships: []
       }
+
       matches: {
         Row: {
           id: string
@@ -152,6 +149,7 @@ export interface Database {
           }
         ]
       }
+
       tournaments: {
         Row: {
           id: string
@@ -185,50 +183,22 @@ export interface Database {
         }
         Relationships: []
       }
-      users: {
-        Row: {
-          id: string
-          name: string
-          email: string
-          role: 'admin' | 'user'
-          is_enabled: boolean
-          avatar_url: string | null
-          updated_at: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          email: string
-          role?: 'admin' | 'user'
-          is_enabled?: boolean
-          avatar_url?: string | null
-          updated_at?: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          email?: string
-          role?: 'admin' | 'user'
-          is_enabled?: boolean
-          avatar_url?: string | null
-          updated_at?: string
-          created_at?: string
-        }
-        Relationships: []
-      }
     }
+
     Views: {
       [_ in never]: never
     }
+
     Functions: {
       [_ in never]: never
     }
+
     Enums: {
       [_ in never]: never
     }
+
     CompositeTypes: {
       [_ in never]: never
     }
   }
+}
