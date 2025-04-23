@@ -9,7 +9,6 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
-      users: {
         Row: {
           id: string
           email: string
@@ -233,4 +232,3 @@ export interface Database {
       [_ in never]: never
     }
   }
-} 
