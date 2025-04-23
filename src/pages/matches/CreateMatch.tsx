@@ -45,17 +45,12 @@ export default function CreateMatch({ currentUser, users, onClose, onSubmit }: C
   const [partnerSearch, setPartnerSearch] = useState('')
   const [selectedPartner, setSelectedPartner] = useState<string>('')
   const [sets, setSets] = useState([
-    { set_number: 1, player1_score: 0, player2_score: 0 },
-    { set_number: 2, player1_score: 0, player2_score: 0 },
-    { set_number: 3, player1_score: 0, player2_score: 0 },
-    { set_number: 4, player1_score: 0, player2_score: 0 },
-    { set_number: 5, player1_score: 0, player2_score: 0 }
+    { set_number: 1, player1_score: 0, player2_score: 0, tiebreak: { player1_score: 0, player2_score: 0 } },
+    { set_number: 2, player1_score: 0, player2_score: 0, tiebreak: { player1_score: 0, player2_score: 0 } },
+    { set_number: 3, player1_score: 0, player2_score: 0, tiebreak: { player1_score: 0, player2_score: 0 } },
+    { set_number: 4, player1_score: 0, player2_score: 0, tiebreak: { player1_score: 0, player2_score: 0 } },
+    { set_number: 5, player1_score: 0, player2_score: 0, tiebreak: { player1_score: 0, player2_score: 0 } }
   ])
-
-  const [tiebreakScores, setTiebreakScores] = useState({
-    player1_score: 0,
-    player2_score: 0
-  })
 
   const [isOpponent1Focused, setIsOpponent1Focused] = useState(false)
   const [isOpponent2Focused, setIsOpponent2Focused] = useState(false)
@@ -80,12 +75,13 @@ export default function CreateMatch({ currentUser, users, onClose, onSubmit }: C
   }
 
   // 更新抢七比分
-  const updateTiebreakScore = (player: 'player1' | 'player2', score: number) => {
+  const updateTiebreakScore = (setIndex: number, player: 'player1' | 'player2', score: number) => {
     if (score >= 0 && score <= 99) {
-      setTiebreakScores(prev => ({
-        ...prev,
-        [`${player}_score`]: score
-      }))
+      const newSets = [...sets]
+      if (newSets[setIndex].tiebreak) {
+        newSets[setIndex].tiebreak[`${player}_score`] = score
+        setSets(newSets)
+      }
     }
   }
 
@@ -120,19 +116,15 @@ export default function CreateMatch({ currentUser, users, onClose, onSubmit }: C
     // 提交数据
     onSubmit({
       player1_id: currentUser.id,
-      player2_id: isDoubles ? selectedOpponent1 : selectedOpponent1, // 单打时使用 opponent1
+      player2_id: isDoubles ? selectedOpponent1 : selectedOpponent1,
       match_date: selectedDate,
       match_type: matchType as 'women_singles' | 'men_singles' | 'women_doubles' | 'men_doubles' | 'mixed_singles' | 'mixed_doubles',
       teammate_id: isDoubles ? selectedPartner : undefined,
-      opponent2_id: isDoubles ? selectedOpponent2 : undefined, // 新增：双打时的第二个对手
-      sets: sets.slice(0, totalSets).map((set, index) => ({
-        set_number: index + 1,
+      opponent2_id: isDoubles ? selectedOpponent2 : undefined,
+      sets: sets.slice(0, totalSets).map((set) => ({
         player1_score: set.player1_score,
         player2_score: set.player2_score,
-        tiebreak: index === totalSets - 1 && (set.player1_score === 6 && set.player2_score === 7 || 
-                                            set.player1_score === 7 && set.player2_score === 6) 
-          ? tiebreakScores 
-          : undefined
+        tiebreak: set.player1_score === 6 && set.player2_score === 6 ? set.tiebreak : undefined
       }))
     })
   }
@@ -339,18 +331,16 @@ export default function CreateMatch({ currentUser, users, onClose, onSubmit }: C
                 className="w-16 p-2 border rounded"
                 required
               />
-              {/* 显示抢七输入框的条件：最后一盘且比分为6:7或7:6 */}
-              {index === totalSets - 1 && 
-               (set.player1_score === 6 && set.player2_score === 7 || 
-                set.player1_score === 7 && set.player2_score === 6) && (
+              {/* 当比分为6:6时显示抢七输入框 */}
+              {set.player1_score === 6 && set.player2_score === 6 && (
                 <div className="flex items-center gap-2 ml-4">
                   <span className="text-sm">抢七</span>
                   <input
                     type="number"
                     min="0"
                     max="99"
-                    value={tiebreakScores.player1_score}
-                    onChange={(e) => updateTiebreakScore('player1', parseInt(e.target.value) || 0)}
+                    value={set.tiebreak?.player1_score || 0}
+                    onChange={(e) => updateTiebreakScore(index, 'player1', parseInt(e.target.value) || 0)}
                     className="w-16 p-2 border rounded"
                   />
                   <span>:</span>
@@ -358,8 +348,8 @@ export default function CreateMatch({ currentUser, users, onClose, onSubmit }: C
                     type="number"
                     min="0"
                     max="99"
-                    value={tiebreakScores.player2_score}
-                    onChange={(e) => updateTiebreakScore('player2', parseInt(e.target.value) || 0)}
+                    value={set.tiebreak?.player2_score || 0}
+                    onChange={(e) => updateTiebreakScore(index, 'player2', parseInt(e.target.value) || 0)}
                     className="w-16 p-2 border rounded"
                   />
                 </div>
@@ -367,23 +357,24 @@ export default function CreateMatch({ currentUser, users, onClose, onSubmit }: C
             </div>
           ))}
         </div>
+
+        <div className="flex justify-end gap-4 mt-6">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-gray-600 hover:text-gray-800"
+          >
+            取消
+          </button>
+          <button
+            type="submit"
+            onClick={handleSubmit}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            保存
+          </button>
+        </div>
       </form>
-      <div className="flex justify-end gap-4 mt-6">
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-4 py-2 text-gray-600 hover:text-gray-800"
-        >
-          取消
-        </button>
-        <button
-          type="submit"
-          onClick={handleSubmit}
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-        >
-          保存
-        </button>
-      </div>
     </div>
   )
 }
