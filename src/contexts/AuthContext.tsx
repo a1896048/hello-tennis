@@ -3,7 +3,6 @@ import { supabase } from '../utils/supabase'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { User } from '@/types/user'
 
-// 定义上下文类型
 interface AuthContextType {
   user: User | null
   loading: boolean
@@ -11,7 +10,6 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
 }
 
-// 创建认证上下文
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
@@ -19,42 +17,38 @@ const AuthContext = createContext<AuthContextType>({
   signIn: async () => ({ error: null }),
 })
 
-// 创建认证提供者组件
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // 获取用户完整信息
-  const fetchUserProfile = async (authUser: SupabaseUser) => {
+  const fetchUserProfile = async (authUser: SupabaseUser): Promise<User | null> => {
     try {
-      console.log('Fetching user profile for:', authUser.id)
       const { data, error } = await supabase
         .from('users')
-        .select('*')
+        .select('id, name, email, role, is_enabled, avatar_url, updated_at, created_at, gender, total_points, total_matches, won_matches')
         .eq('id', authUser.id)
-        .single()
-
-      if (error) {
+        .single<User>() // 👈 添加泛型
+  
+      if (error || !data) {
         console.error('Error fetching user profile:', error)
         return null
       }
-
-      console.log('Fetched user profile:', data)
-      return data
+  
+      return data // 👈 类型已确定，无需 `as User`
     } catch (error) {
       console.error('Error in fetchUserProfile:', error)
       return null
     }
   }
+  
 
   useEffect(() => {
     let mounted = true
 
     const initializeAuth = async () => {
       try {
-        // 首先检查现有会话
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-        
+
         if (sessionError) {
           console.error('Session error:', sessionError)
           if (mounted) {
@@ -71,7 +65,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(profile)
           }
         } else {
-          console.log('No existing session')
           if (mounted) {
             setUser(null)
           }
@@ -88,10 +81,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // 监听认证状态变化
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event, session?.user?.id)
-      
+
       if (session?.user) {
         const profile = await fetchUserProfile(session.user)
         if (mounted) {
@@ -102,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null)
         }
       }
-      
+
       if (mounted) {
         setLoading(false)
       }
@@ -142,9 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // 添加调试信息
-  console.log('AuthContext state:', { user, loading })
-
   return (
     <AuthContext.Provider value={{ user, loading, signOut, signIn }}>
       {children}
@@ -152,7 +141,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 }
 
-// 创建自定义 Hook
 export const useAuth = () => {
   const context = useContext(AuthContext)
   if (!context) {
